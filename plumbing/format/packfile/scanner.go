@@ -15,6 +15,11 @@ import (
 // Scanner reads and decodes packfile data from an io.Reader.
 // It provides low-level access to packfile objects without
 // building an in-memory index.
+//
+// Note: The bufio.Reader uses a 64KB buffer (vs the default 4KB) to reduce
+// the number of underlying reads when processing large packfiles. This can
+// noticeably improve performance when reading from network streams or slow
+// storage.
 type Scanner struct {
 	r        io.Reader
 	br       *bufio.Reader
@@ -23,10 +28,14 @@ type Scanner struct {
 	Counted  bool
 }
 
+// defaultBufSize is the buffer size used for the internal bufio.Reader.
+// Using 64KB instead of the default 4KB reduces syscall overhead on large packs.
+const defaultBufSize = 64 * 1024
+
 // NewScanner creates a new Scanner that reads from r.
 func NewScanner(r io.Reader) *Scanner {
 	h := crc32.NewIEEE()
-	br := bufio.NewReader(io.TeeReader(r, h))
+	br := bufio.NewReaderSize(io.TeeReader(r, h), defaultBufSize)
 	return &Scanner{
 		r:  r,
 		br: br,
@@ -129,41 +138,4 @@ func (s *Scanner) NextObject(w io.Writer) (int64, error) {
 	}
 	defer zr.Close()
 
-	n, err := io.Copy(w, zr)
-	if err != nil {
-		return n, fmt.Errorf("decompressing object: %w", err)
-	}
-	return n, nil
-}
-
-// readVarint reads a variable-length integer (big-endian, MSB continuation).
-func readVarint(r io.ByteReader) (uint64, error) {
-	var v uint64
-	var b byte
-	var err error
-	b, err = r.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	v = uint64(b & 0x7f)
-	for b&0x80 != 0 {
-		v++
-		b, err = r.ReadByte()
-		if err != nil {
-			return 0, err
-		}
-		v = (v << 7) | uint64(b&0x7f)
-	}
-	return v, nil
-}
-
-// varIntSize returns the number of bytes needed to encode v as a varint.
-func varIntSize(v uint64) int {
-	size := 1
-	v >>= 7
-	for v > 0 {
-		v >>= 7
-		size++
-	}
-	return size
-}
+	n,
