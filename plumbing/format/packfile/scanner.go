@@ -16,10 +16,11 @@ import (
 // It provides low-level access to packfile objects without
 // building an in-memory index.
 //
-// Note: The bufio.Reader uses a 256KB buffer (vs the default 4KB) to reduce
+// Note: The bufio.Reader uses a 512KB buffer (vs the default 4KB) to reduce
 // the number of underlying reads when processing large packfiles. This can
 // noticeably improve performance when reading from network streams or slow
-// storage. Bumped from 128KB after seeing further gains on large monorepos.
+// storage. Bumped from 256KB after seeing further gains on large monorepos
+// with many small objects.
 type Scanner struct {
 	r        io.Reader
 	br       *bufio.Reader
@@ -29,10 +30,10 @@ type Scanner struct {
 }
 
 // defaultBufSize is the buffer size used for the internal bufio.Reader.
-// Using 256KB instead of the default 4KB reduces syscall overhead on large packs.
-// Increased from 128KB — local benchmarks on a large monorepo showed ~8% speedup
-// on NVMe and a more noticeable gain over network-backed storage.
-const defaultBufSize = 256 * 1024
+// Using 512KB instead of the default 4KB reduces syscall overhead on large packs.
+// Increased from 256KB — local benchmarks showed additional gains when processing
+// repos with many small objects packed together, where read-ahead helps more.
+const defaultBufSize = 512 * 1024
 
 // NewScanner creates a new Scanner that reads from r.
 func NewScanner(r io.Reader) *Scanner {
@@ -115,5 +116,4 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 	}
 
 	switch oh.Type {
-	case plumbing.OFSDeltaObject:
-		v, err :=
+	case 
