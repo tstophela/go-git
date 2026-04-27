@@ -16,11 +16,11 @@ import (
 // It provides low-level access to packfile objects without
 // building an in-memory index.
 //
-// Note: The bufio.Reader uses a 256KB buffer (vs the default 4KB) to reduce
-// the number of underlying reads when processing large packfiles. This can
-// noticeably improve performance when reading from network streams or slow
-// storage. Kept at 256KB — in my testing on mid-sized repos, the gains from
-// 512KB were marginal and not worth the extra memory per scanner instance.
+// Note: The bufio.Reader uses a 512KB buffer to reduce the number of
+// underlying reads when processing large packfiles. This can noticeably
+// improve performance when reading from network streams or slow storage.
+// Bumped from 256KB after profiling on larger repos (linux kernel, chromium)
+// where the extra buffer size meaningfully reduced syscall overhead.
 type Scanner struct {
 	r        io.Reader
 	br       *bufio.Reader
@@ -30,10 +30,10 @@ type Scanner struct {
 }
 
 // defaultBufSize is the buffer size used for the internal bufio.Reader.
-// Using 256KB instead of the default 4KB reduces syscall overhead on large packs.
-// I tested 512KB but saw diminishing returns on my typical repo sizes, so
-// keeping this at 256KB to balance performance and memory usage.
-const defaultBufSize = 256 * 1024
+// Using 512KB instead of the default 4KB reduces syscall overhead on large packs.
+// Bumped from 256KB after seeing measurable gains on repos with large packfiles
+// (e.g. linux kernel). The extra 256KB per scanner is worth it for my use case.
+const defaultBufSize = 512 * 1024
 
 // NewScanner creates a new Scanner that reads from r.
 func NewScanner(r io.Reader) *Scanner {
@@ -109,16 +109,3 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 			s.offset++
 			oh.Length |= int64(b&0x7f) << shift
 			shift += 7
-			if b&0x80 == 0 {
-				break
-			}
-		}
-	}
-
-	return oh, nil
-}
-
-// scannerZlibReader is a helper to read zlib-compressed object data.
-func scannerZlibReader(r io.Reader) (io.ReadCloser, error) {
-	return zlib.NewReader(r)
-}
