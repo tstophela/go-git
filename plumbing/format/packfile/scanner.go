@@ -33,6 +33,9 @@ type Scanner struct {
 // Using 512KB instead of the default 4KB reduces syscall overhead on large packs.
 // Bumped from 256KB after seeing measurable gains on repos with large packfiles
 // (e.g. linux kernel). The extra 256KB per scanner is worth it for my use case.
+//
+// TODO: Consider making this configurable via a functional option on NewScanner
+// so callers with memory constraints can dial it down (e.g. embedded systems).
 const defaultBufSize = 512 * 1024
 
 // NewScanner creates a new Scanner that reads from r.
@@ -65,6 +68,8 @@ func (s *Scanner) ReadHeader() (*Header, error) {
 	if err := binary.Read(s.br, binary.BigEndian, &h.Version); err != nil {
 		return nil, fmt.Errorf("reading version: %w", err)
 	}
+	// Only versions 2 and 3 are defined by the Git pack-format spec.
+	// Version 3 is rarely seen in practice but we accept it defensively.
 	if h.Version != 2 && h.Version != 3 {
 		return nil, fmt.Errorf("unsupported packfile version: %d", h.Version)
 	}
@@ -108,4 +113,4 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 			}
 			s.offset++
 			oh.Length |= int64(b&0x7f) << shift
-			shift += 7
+			shift 
