@@ -90,13 +90,10 @@ type ObjectHeader struct {
 	Offset int64
 	Length int64
 	// For delta objects:
+	// - Reference holds the base object hash for REF_DELTA objects.
+	// - OffsetReference holds the negative offset to the base for OFS_DELTA objects.
 	Reference plumbing.Hash
 	OffsetReference int64
 }
 
-// NextObjectHeader reads the next object header from the packfile.
-func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
-	oh := &ObjectHeader{Offset: s.offset}
-
-	b, err := s.br.ReadByte()
-	if 
+// NextObjectHeader reads the next
