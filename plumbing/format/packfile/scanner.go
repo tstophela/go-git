@@ -34,6 +34,9 @@ type Scanner struct {
 // Bumped from 256KB after seeing measurable gains on repos with large packfiles
 // (e.g. linux kernel). The extra 256KB per scanner is worth it for my use case.
 //
+// NOTE(personal): I tried 1MB here but didn't see meaningful gains beyond 512KB
+// in my benchmarks, and it doubles the per-scanner memory cost. Keeping at 512KB.
+//
 // TODO: Consider making this configurable via a functional option on NewScanner
 // so callers with memory constraints can dial it down (e.g. embedded systems).
 const defaultBufSize = 512 * 1024
@@ -96,21 +99,4 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 	oh := &ObjectHeader{Offset: s.offset}
 
 	b, err := s.br.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-	s.offset++
-
-	oh.Type = plumbing.ObjectType((b >> 4) & 0x7)
-	oh.Length = int64(b & 0xf)
-
-	if b&0x80 != 0 {
-		shift := uint(4)
-		for {
-			b, err = s.br.ReadByte()
-			if err != nil {
-				return nil, err
-			}
-			s.offset++
-			oh.Length |= int64(b&0x7f) << shift
-			shift 
+	if 
